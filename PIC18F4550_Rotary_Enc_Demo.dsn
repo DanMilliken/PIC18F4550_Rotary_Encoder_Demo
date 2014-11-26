@@ -872,7 +872,7 @@ download the executable.-->
 		<POWER pos='160.00000,84.00000' which='4' direction='1'></POWER>
 		<JUNCTION pos='229.00000,111.00000'/>
 		<JUNCTION pos='224.00000,134.33333'/>
-		<WIRE a='151.00000,77.00000' b='167.00000,77.00000'/>
+		<WIRE a='151.00000,77.00000' b='193.00000,77.00000'/>
 		<WIRE a='160.00000,80.00000' b='160.00000,84.00000'/>
 		<SYMBOL id='11' pos='29.00000,71.00000' part='0' rotate='0' can_scale='0' show_power='0' scale_x='1.00000' scale_y='1.00000'>
 			<FIELD type='0' description='Ref' value='R?' show='0' pos='1.00000,-15.60000'/>
@@ -926,28 +926,48 @@ download the executable.-->
 		<NOCONNECT pos='58.00000,42.00000'/>
 		<NOCONNECT pos='61.00000,42.00000'/>
 		<NOCONNECT pos='64.00000,42.00000'/>
-		<SYMBOL id='13' pos='195.00000,72.00000' part='0' rotate='4' can_scale='0' show_power='0' scale_x='1.00000' scale_y='1.00000'>
+		<SYMBOL id='13' pos='222.00000,72.00000' part='0' rotate='4' can_scale='0' show_power='0' scale_x='1.00000' scale_y='1.00000'>
 			<FIELD type='0' description='Ref' value='U?' show='0' pos='1.00000,-7.60000'/>
 			<FIELD type='0' description='Name' value='ROT ENC' show='1' pos='1.00000,-10.00000'/>
 			<FIELD type='2' description='$$SPICE_PROLOG_PRIORITY' value='5' show='0' pos='0.00000,0.00000'/>
 			<FIELD type='2' description='$$SPICE_EPILOG_PRIORITY' value='5' show='0' pos='0.00000,0.00000'/>
 			<FIELD type='1' description='Package' value='package name for PCB layout' show='0' pos='1.00000,-5.20000'/>
 		</SYMBOL>
-		<WIRE a='171.00000,70.00000' b='171.00000,80.00000'/>
+		<WIRE a='199.00000,70.00000' b='199.00000,80.00000'/>
 		<WIRE a='160.00000,80.00000' b='151.00000,80.00000'/>
 		<WIRE a='171.00000,80.00000' b='160.00000,80.00000'/>
 		<JUNCTION pos='160.00000,80.00000'/>
-		<WIRE a='176.00000,68.00000' b='167.00000,68.00000'/>
-		<WIRE a='171.00000,70.00000' b='176.00000,70.00000'/>
-		<WIRE a='176.00000,64.00000' b='161.00000,64.00000'/>
+		<WIRE a='203.00000,68.00000' b='193.00000,68.00000'/>
+		<WIRE a='199.00000,70.00000' b='203.00000,70.00000'/>
+		<WIRE a='182.00000,64.00000' b='161.00000,64.00000'/>
 		<WIRE a='161.00000,64.00000' b='161.00000,71.00000'/>
 		<WIRE a='161.00000,71.00000' b='151.00000,71.00000'/>
-		<WIRE a='176.00000,62.00000' b='164.00000,62.00000'/>
+		<WIRE a='171.00000,62.00000' b='164.00000,62.00000'/>
 		<WIRE a='164.00000,62.00000' b='164.00000,74.00000'/>
 		<WIRE a='164.00000,74.00000' b='151.00000,74.00000'/>
-		<POWER pos='167.00000,58.00000' which='0' direction='0'>5V</POWER>
-		<WIRE a='167.00000,68.00000' b='167.00000,77.00000'/>
-		<JUNCTION pos='167.00000,68.00000'/>
-		<WIRE a='167.00000,58.00000' b='167.00000,68.00000'/>
+		<POWER pos='193.00000,58.00000' which='0' direction='0'>5V</POWER>
+		<WIRE a='193.00000,68.00000' b='193.00000,77.00000'/>
+		<WIRE a='193.00000,58.00000' b='193.00000,68.00000'/>
+		<JUNCTION pos='193.00000,68.00000'/>
+		<SYMBOL id='9' pos='173.00000,76.00000' part='0' rotate='0' can_scale='0' show_power='0' scale_x='1.00000' scale_y='1.00000'>
+			<FIELD type='0' description='Ref' value='0.1uF' show='1' pos='1.00000,-5.00000'/>
+			<FIELD type='0' description='Name' value='C' show='0' pos='-8.00000,-4.00000'/>
+		</SYMBOL>
+		<SYMBOL id='9' pos='184.00000,76.00000' part='0' rotate='0' can_scale='0' show_power='0' scale_x='1.00000' scale_y='1.00000'>
+			<FIELD type='0' description='Ref' value='0.1uF' show='1' pos='1.00000,-5.00000'/>
+			<FIELD type='0' description='Name' value='C' show='0' pos='-8.00000,-4.00000'/>
+		</SYMBOL>
+		<WIRE a='171.00000,68.00000' b='171.00000,62.00000'/>
+		<JUNCTION pos='171.00000,62.00000'/>
+		<WIRE a='203.00000,62.00000' b='171.00000,62.00000'/>
+		<WIRE a='182.00000,68.00000' b='182.00000,64.00000'/>
+		<JUNCTION pos='182.00000,64.00000'/>
+		<WIRE a='203.00000,64.00000' b='182.00000,64.00000'/>
+		<WIRE a='171.00000,75.00000' b='171.00000,80.00000'/>
+		<JUNCTION pos='171.00000,80.00000'/>
+		<WIRE a='182.00000,80.00000' b='171.00000,80.00000'/>
+		<WIRE a='182.00000,75.00000' b='182.00000,80.00000'/>
+		<JUNCTION pos='182.00000,80.00000'/>
+		<WIRE a='199.00000,80.00000' b='182.00000,80.00000'/>
 	</TinyCAD>
 </TinyCADSheets>

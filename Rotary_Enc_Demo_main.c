@@ -438,10 +438,16 @@ int main(void)
     INTCONbits.PEIE = 0; // enable peripheral interrupts
     INTCONbits.GIE = 0;  // enable interrupts
 
-    printf("%ul: Opening port B.\n", GetSystemTime());
-    OpenPORTB(PORTB_CHANGE_INT_ON & PORTB_PULLUPS_ON);
-    printf("%ul: Port B Open. Opening INT...\n", GetSystemTime());
-    OpenRB0INT(PORTB_CHANGE_INT_ON & FALLING_EDGE_INT & PORTB_PULLUPS_ON);
+    TRISBbits.TRISB0 = 1;
+    TRISBbits.TRISB1 = 1;
+    ADCON1bits.PCFG = 0x0F; // AN12:AN0 to digital
+    INTCON2bits.INTEDG0 = 0; // interrupt on falling edge
+    INTCONbits.INT0IF = 0; // clear the flag
+    INTCONbits.INT0IE = 1;
+//    printf("%ul: Opening port B.\n", GetSystemTime());
+//    OpenPORTB(PORTB_CHANGE_INT_ON & PORTB_PULLUPS_ON);
+//    printf("%ul: Port B Open. Opening INT...\n", GetSystemTime());
+//    OpenRB0INT(PORTB_CHANGE_INT_ON & FALLING_EDGE_INT & PORTB_PULLUPS_ON);
     printf("%ul: Port B interrupts initialized.\n", GetSystemTime());
 
     RCONbits.IPEN = 0; // disable priority levels.
@@ -455,12 +461,7 @@ int main(void)
     {
         if(true == encoder_changed)
         {
-            _delay3(833);     // delay 500us
-            encoder_value = PORTBbits.RB1 ? encoder_value + 1 : encoder_value - 1;
-            INTCONbits.INT0IE=0;
             LCD_Display_Encoder_Value(encoder_value);
-            INTCONbits.INT0IE=1;
-            Delay10KTCYx(75);  // delay 150ms
             encoder_changed = false;
         }
     }
@@ -599,11 +600,21 @@ void interrupt ISR(void)
     if (1 == INTCONbits.INT0IF)
     {
         int_debug("INT0IF ");
+        INTCONbits.INT0IE = 0;
         INTCONbits.INT0IF = 0;
+        signed char adjust = 0;
+        if(PORTBbits.RB1)
+            adjust = 1;
+        else
+            adjust = -1;
+//        printf("adjust: %d\n",adjust);
+        encoder_value += adjust;
+
         if(!encoder_changed) // Check if still processing the last interrupt
         {
             encoder_changed = true;
         }
+        INTCONbits.INT0IE = 1;
     }
 
     if (1 == INTCONbits.RBIF)
