@@ -1,18 +1,15 @@
 /******************************************************************************
  *
- * PIC18F4550_LCD_Demo
+ * PIC18F4550_Rotary_Encoder_Demo
  *
  * Author: Dan Milliken
  *
- * Date: 2014-11-19
+ * Date: 2014-11-26
  * 
- * Project: PIC18F4550_LCD_Demo
+ * Project: PIC18F4550_Rotary_Enc_Demo
  *
- * Description: Demonstrates output to an LCD using the PIC18F4550. The LCD
- * is a 1602A with a ST7066U controller chip. It's to be connected in four bit
- * mode using A0-A3 and E0-E2 for the control signals. A menu will be presented
- * on the UART prompting for a string to be displayed on the LCD. Timing is
- * controlled by a 1ms clock interrupt driven by Timer2.
+ * Description: Demonstrates reading a rotary encoder and using the value to
+ * output a character value to a 16x2 LCD.
  *
  * License: Licensed under the Creative Commons Attribution-ShareAlike 4.0
  * International License (http://creativecommons.org/licenses/by-sa/4.0/)
@@ -94,8 +91,8 @@ void DisplayStringLCD();
 // globals
 unsigned long system_time = 0; // ms - SYSTEM RUNNING TIME LIMIT: 49 days
 bool getchar_active = false;
-unsigned char encoder_value = 4;
-bool encoder_changed = true;
+unsigned char encoder_value = 0;
+bool encoder_changed = false;
 
 /* Options for menu system */
 #define MAX_TITLE     100
@@ -408,10 +405,11 @@ void LCD_Display_Encoder_Value(unsigned char value)
 
     memset(message,0,66);
 
-//    if(0==value)
-//        sprintf(message,"Value: ' '\n0x%2X: 0b", value);
-//    else
+    if(0==value)
+        sprintf(message,"Value: null\n0x%2X: 0b", value);
+    else
         sprintf(message,"Value: '%c'\n0x%2X: 0b", value,value);
+
     for(int i=7; i>=0; i--)
         if((value >> i)&1 == 1)
             strcat(message,"1");
@@ -431,18 +429,12 @@ int main(void)
     UART_init();   // initialize the UART module
     printf("\n*** System startup ***\n");
 
-//    timer2_init(); // initialize the system time
-//    printf("%ul: System clock started\n", GetSystemTime());
+    timer2_init(); // initialize the system time
+    printf("%ul: System clock started\n", GetSystemTime());
 
     InitLCD(FOUR_BIT);    // initialize the LCD: 4-bit, 2 line, 5x11 dots per character
     printf("%ul: LCD initialized.\n", GetSystemTime());
 
-//    while(1)
-//    {
-//        NavigateMenu(&menu_main);
-//    }
-//
-    RCONbits.IPEN = 0; // disable priority levels.
     INTCONbits.PEIE = 0; // enable peripheral interrupts
     INTCONbits.GIE = 0;  // enable interrupts
 
@@ -452,21 +444,24 @@ int main(void)
     OpenRB0INT(PORTB_CHANGE_INT_ON & FALLING_EDGE_INT & PORTB_PULLUPS_ON);
     printf("%ul: Port B interrupts initialized.\n", GetSystemTime());
 
-    printf("1\n");
+    RCONbits.IPEN = 0; // disable priority levels.
+    INTCONbits.RBIE = 0;
     INTCONbits.PEIE = 1; // enable peripheral interrupts
-    printf("2\n");
     INTCONbits.GIE = 1;  // enable interrupts
-    printf("3\n");
+
+    LCD_Display_Encoder_Value(encoder_value);
 
     while(1)
     {
         if(true == encoder_changed)
         {
+            _delay3(833);     // delay 500us
+            encoder_value = PORTBbits.RB1 ? encoder_value + 1 : encoder_value - 1;
             INTCONbits.INT0IE=0;
-            printf("Display %d\n",encoder_value);
             LCD_Display_Encoder_Value(encoder_value);
-            encoder_changed = false;
             INTCONbits.INT0IE=1;
+            Delay10KTCYx(75);  // delay 150ms
+            encoder_changed = false;
         }
     }
 
@@ -570,7 +565,7 @@ void ProcessUART(unsigned char byte)
     return;
 }
 
-#define DEBUG_INTERRUPTS
+//#define DEBUG_INTERRUPTS
 
 void int_debug(const char * msg)
 {
@@ -607,10 +602,8 @@ void interrupt ISR(void)
         INTCONbits.INT0IF = 0;
         if(!encoder_changed) // Check if still processing the last interrupt
         {
-            encoder_value = PORTBbits.RB1 ? encoder_value + 1 : encoder_value - 1;
             encoder_changed = true;
         }
-        printf("collect %d\n",encoder_value);
     }
 
     if (1 == INTCONbits.RBIF)
