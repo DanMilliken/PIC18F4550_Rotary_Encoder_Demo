@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <stdbool.h>       /* For true/false definition */
 #include <delays.h>
-#include <portb.h>         /* Port B interrupt routines */
 
 #define _XTAL_FREQ  20000000
 
@@ -76,27 +75,29 @@
 struct menu;
 
 // function prototypes
-void UART_write(unsigned char c);
-void UART_init(void);
+void uart_write(unsigned char c);
+void uart_init(void);
 void timer2_init(void);
-void interrupt ISR(void);
-unsigned long GetSystemTime(void);
+void interrupt isr(void);
+unsigned long get_system_time(void);
 
-void DisplayMenu(struct menu *mnu);
-void NavigateMenu(struct menu *mnu);
-struct menu* GetUserSelection(struct menu *mnu);
+/* Options for menu system */
+#define MAX_TITLE     100
+#define MAX_SUBMENUS  10
 
-void DisplayStringLCD();
+// menu system functions
+void menu_display(struct menu *mnu);
+void menu_navigate(struct menu *mnu);
+struct menu* menu_get_user_selection(struct menu *mnu);
+
+// user functions for menu system
+void display_string_on_lcd();
 
 // globals
 unsigned long system_time = 0; // ms - SYSTEM RUNNING TIME LIMIT: 49 days
 bool getchar_active = false;
 unsigned char encoder_value = 0;
 bool encoder_changed = false;
-
-/* Options for menu system */
-#define MAX_TITLE     100
-#define MAX_SUBMENUS  10
 
 struct menu
 {
@@ -106,18 +107,15 @@ struct menu
     struct menu *submenu[MAX_SUBMENUS];
 };
 
-struct menu menu_lcd_control_display_string = { "Display a string", DisplayStringLCD, 0 };
+struct menu menu_lcd_control_display_string = { "Display a string", display_string_on_lcd, 0 };
 struct menu menu_lcd_control = { "LCD Control", NULL, 1, { &menu_lcd_control_display_string } };
 struct menu menu_main = { "Main Menu", NULL, 1, { &menu_lcd_control } };
 
 /* delay functions for LCD */
-void DelayFor18TCY(void) { _delay(18); };         // delay for 18 Tcy, 3.6us
-void DelayPORXLCD(void) { __delay_ms(15); };      // delay at least 15ms
-void DelayXLCD(void) { __delay_ms(5); };          // delay at least 5ms
-#assert _XTAL_FREQ == 20000000                    // Delay45ms based on 20MHz clock
-void Delay45ms(void) { Delay1KTCYx(225); };       // delay 45ms
+#assert _XTAL_FREQ == 20000000                    // lcd_delay_45_ms is based on 20MHz clock
+void lcd_delay_45_ms(void) { Delay1KTCYx(225); };       // delay 45ms
 
-void DisplayMenu(struct menu *mnu)
+void menu_display(struct menu *mnu)
 {
     char output[MAX_TITLE];
 
@@ -138,7 +136,7 @@ void DisplayMenu(struct menu *mnu)
     return;
 }
 
-struct menu* GetUserSelection(struct menu *mnu)
+struct menu* menu_get_user_selection(struct menu *mnu)
 {
     struct menu* new_menu = NULL;
     char selection[83];
@@ -156,34 +154,34 @@ struct menu* GetUserSelection(struct menu *mnu)
     return new_menu;
 }
 
-void NavigateMenu(struct menu *mnu)
+void menu_navigate(struct menu *mnu)
 {
     while(0 != mnu->num_submenus)
     {
-        DisplayMenu(mnu);
-        mnu = GetUserSelection(mnu);
+        menu_display(mnu);
+        mnu = menu_get_user_selection(mnu);
     }
     mnu->command();
     return;
 }
 
-void EnterCriticalSection(void)
+void enter_critical_section(void)
 {
     INTCONbits.GIE = 0;
     return;
 }
 
-void ExitCriticalSection(void)
+void exit_critical_section(void)
 {
     INTCONbits.GIE = 1;
     return;
 }
 
-unsigned char BusyLCD(void)
+unsigned char lcd_busy_check(void)
 {
     __delay_us(80);             // Must wait at least 80us after last instruction
                                 // to check busy flag.
-    EnterCriticalSection();
+    enter_critical_section();
     RW_PIN = 1;                 // Set the control bits for read
     RS_PIN = 0;
     E_PIN = 1;                  // Clock in the command
@@ -198,7 +196,7 @@ unsigned char BusyLCD(void)
         E_PIN = 0;
         _delay(3);              // Data hold time and enable cycle time: Total 1200ns
         RW_PIN = 0;             // Reset control line
-        ExitCriticalSection();
+        exit_critical_section();
         return 1;               // Return TRUE
     }
     else                            // Busy bit is low
@@ -211,14 +209,14 @@ unsigned char BusyLCD(void)
         E_PIN = 0;
         _delay(3);              // Data hold time and enable cycle time: Total 1200ns
         RW_PIN = 0;             // Reset control line
-        ExitCriticalSection();
+        exit_critical_section();
         return 0;               // Return FALSE
     }
 }
 
-void WriteCmdLCD(unsigned char cmd)
+void lcd_write_cmd(unsigned char cmd)
 {
-    EnterCriticalSection();
+    enter_critical_section();
     TRIS_DATA_PORT &= 0xf0;
     RS_PIN = 0;
     RW_PIN = 0;                     // Set control signals for command
@@ -226,25 +224,57 @@ void WriteCmdLCD(unsigned char cmd)
     DATA_PORT &= 0xf0;
     DATA_PORT |= (cmd>>4)&0x0f;
     E_PIN = 1;                      // Clock command in
-    DelayFor18TCY();
+    _delay(1);                      // Data setup time: Max 80ns Actual 200ns
+    _delay(2);                      // Remainder of enable pulse width: Min 460ns Actual 600ns
     E_PIN = 0;
+    _delay(3);                      // Data hold time and enable cycle time: Total 1200ns
 
     DATA_PORT &= 0xf0;
     DATA_PORT |= cmd&0x0f;
-    DelayFor18TCY();
     E_PIN = 1;                      // Clock command in
-    DelayFor18TCY();
+    _delay(1);                      // Data setup time: Max 80ns Actual 200ns
+    _delay(2);                      // Remainder of enable pulse width: Min 460ns Actual 600ns
     E_PIN = 0;
+    _delay(3);                      // Data hold time and enable cycle time: Total 1200ns
 
     TRIS_DATA_PORT |= 0x0f;
-    ExitCriticalSection();
+    exit_critical_section();
 
     return;
 }
 
-void WriteDataLCD(char data)
+void lcd_set_ddram_address(unsigned char addr)
 {
-    EnterCriticalSection();
+    enter_critical_section();
+    TRIS_DATA_PORT &= 0xf0;                 // Make port output
+    RW_PIN = 0;                             // Set control bits
+    RS_PIN = 0;
+
+    DATA_PORT &= 0xf0;                      // and write upper nibble
+    DATA_PORT |= (((addr | 0b10000000)>>4) & 0x0f);
+    E_PIN = 1;                              // Clock the cmd and address in
+    _delay(1);                      // Data setup time: Max 80ns Actual 200ns
+    _delay(2);                      // Remainder of enable pulse width: Min 460ns Actual 600ns
+    E_PIN = 0;
+    _delay(3);                      // Data hold time and enable cycle time: Total 1200ns
+
+    DATA_PORT &= 0xf0;                      // Write lower nibble
+    DATA_PORT |= (addr&0x0f);
+    E_PIN = 1;                              // Clock the cmd and address in
+    _delay(1);                      // Data setup time: Max 80ns Actual 200ns
+    _delay(2);                      // Remainder of enable pulse width: Min 460ns Actual 600ns
+    E_PIN = 0;
+    _delay(3);                      // Data hold time and enable cycle time: Total 1200ns
+
+    TRIS_DATA_PORT |= 0x0f;                 // Make port input
+    exit_critical_section();
+
+    return;
+}
+
+void lcd_write_data(char data)
+{
+    enter_critical_section();
     TRIS_DATA_PORT &= 0xf0;
     RS_PIN = 1;                     // Set control bits
     RW_PIN = 0;
@@ -266,38 +296,12 @@ void WriteDataLCD(char data)
     _delay(3);                      // Data hold time and enable cycle time: Total 1200ns
 
     TRIS_DATA_PORT |= 0x0f;
-    ExitCriticalSection();
+    exit_critical_section();
 
     return;
 }
 
-void SetDDRamAddr(unsigned char DDaddr)
-{
-    EnterCriticalSection();
-    TRIS_DATA_PORT &= 0xf0;                 // Make port output
-    DATA_PORT &= 0xf0;                      // and write upper nibble
-    DATA_PORT |= (((DDaddr | 0b10000000)>>4) & 0x0f);
-
-    RW_PIN = 0;                             // Set control bits
-    RS_PIN = 0;
-    DelayFor18TCY();
-    E_PIN = 1;                              // Clock the cmd and address in
-    DelayFor18TCY();
-    E_PIN = 0;
-    DATA_PORT &= 0xf0;                      // Write lower nibble
-    DATA_PORT |= (DDaddr&0x0f);
-    DelayFor18TCY();
-    E_PIN = 1;                              // Clock the cmd and address in
-    DelayFor18TCY();
-    E_PIN = 0;
-
-    TRIS_DATA_PORT |= 0x0f;                 // Make port input
-    ExitCriticalSection();
-
-    return;
-}
-
-void InitLCD(unsigned char lcdtype)
+void lcd_init(unsigned char lcdtype)
 {
     // The data bits must be either a 8-bit port or the upper or
     // lower 4-bits of a port. These pins are made into inputs
@@ -311,88 +315,88 @@ void InitLCD(unsigned char lcdtype)
     E_PIN = 0;                      // Clock pin made low
 
     // Delay for 45ms to allow for LCD Power on reset
-    Delay45ms();
+    lcd_delay_45_ms();
 
     //-------------------reset procedure through software----------------------
-    WriteCmdLCD(0x30);
+    lcd_write_cmd(0x30);
     __delay_us(37);
 
-    WriteCmdLCD(0x30);
+    lcd_write_cmd(0x30);
     __delay_us(37);
 
-    WriteCmdLCD(0x32);
+    lcd_write_cmd(0x32);
     __delay_us(37);
 
     // Set data interface width, # lines, font
-    while(BusyLCD());              // Wait if LCD busy
-    WriteCmdLCD(lcdtype);          // Function set cmd
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_write_cmd(lcdtype);          // Function set cmd
 
     // Turn the display on then off
-    while(BusyLCD());              // Wait if LCD busy
-    WriteCmdLCD(DOFF&CURSOR_OFF&BLINK_OFF);        // Display OFF/Blink OFF
-    while(BusyLCD());              // Wait if LCD busy
-    WriteCmdLCD(DON&CURSOR_ON&BLINK_ON);           // Display ON/Blink ON
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_write_cmd(DOFF&CURSOR_OFF&BLINK_OFF);        // Display OFF/Blink OFF
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_write_cmd(DON&CURSOR_ON&BLINK_ON);           // Display ON/Blink ON
 
     // Clear display
-    while(BusyLCD());              // Wait if LCD busy
-    WriteCmdLCD(0x01);             // Clear display
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_write_cmd(0x01);             // Clear display
 
     // Set entry mode inc, no shift
-    while(BusyLCD());              // Wait if LCD busy
-    WriteCmdLCD(0b00000110);       // Shift cursor right, increment DRAM. Don't shift display.
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_write_cmd(0b00000110);       // Shift cursor right, increment DRAM. Don't shift display.
 
     // Set DD Ram address to 0
-    while(BusyLCD());              // Wait if LCD busy
-    SetDDRamAddr(0x00);            // Set Display data ram address to 0
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_set_ddram_address(0x00);            // Set Display data ram address to 0
 
     return;
 }
 
-void ClearLCD()
+void lcd_clear_display()
 {
     // Clear the LCD by writing "20H" to all DDRAM addresses
-    while(BusyLCD());              // Wait if LCD busy
-    SetDDRamAddr(0x00);            // Set Display data ram address to 0
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_set_ddram_address(0x00);            // Set Display data ram address to 0
 
     for(int i=0; i<16; i++)
     {
-        while(BusyLCD());          // Wait if LCD busy
-        WriteDataLCD(' ');         // Write character to LCD
+        while(lcd_busy_check());          // Wait if LCD busy
+        lcd_write_data(' ');         // Write character to LCD
     }
 
-    while(BusyLCD());              // Wait if LCD busy
-    SetDDRamAddr(0x40);            // Set Display data ram address to second line
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_set_ddram_address(0x40);            // Set Display data ram address to second line
 
     for(int i=0; i<16; i++)
     {
-        while(BusyLCD());          // Wait if LCD busy
-        WriteDataLCD(' ');         // Write character to LCD
+        while(lcd_busy_check());          // Wait if LCD busy
+        lcd_write_data(' ');         // Write character to LCD
     }
 
-    while(BusyLCD());              // Wait if LCD busy
-    SetDDRamAddr(0x00);            // Set Display data ram address to 0
+    while(lcd_busy_check());              // Wait if LCD busy
+    lcd_set_ddram_address(0x00);            // Set Display data ram address to 0
 
     return;
 }
 
-void putsLCD(char *buffer)
+void lcd_put_string(char *buffer)
 {
-    ClearLCD();
+    lcd_clear_display();
 
     while(*buffer)               // Write data to LCD up to null
     {
-        while(BusyLCD());        // Wait while LCD is busy
+        while(lcd_busy_check());        // Wait while LCD is busy
         if(*buffer=='\n')
-          SetDDRamAddr(0x40);    // Set Display data ram address to second line
+          lcd_set_ddram_address(0x40);    // Set Display data ram address to second line
         else
-          WriteDataLCD(*buffer); // Write character to LCD
+          lcd_write_data(*buffer); // Write character to LCD
         buffer++;                // Increment buffer
     }
 
     return;
 }
 
-void LCD_Display_Encoder_Value(unsigned char value)
+void display_encoder_value(unsigned char value)
 {
     /**** 
      * Display format:
@@ -416,70 +420,72 @@ void LCD_Display_Encoder_Value(unsigned char value)
         else
             strcat(message,"0");
 
-    putsLCD(message);
+    lcd_put_string(message);
 
     return;
 }
 
+void int0_init()
+{
+    TRISB |= 0b00000001;     // Set RB0 to input
+    ADCON1bits.PCFG = 0x0F;  // AN12:AN0 to digital
+    INTCON2bits.INTEDG0 = 0; // interrupt on falling edge
+    INTCONbits.INT0IF = 0;   // clear the flag
+    INTCONbits.INT0IE = 1;
+
+    return;
+}
 int main(void)
 {
     INTCONbits.PEIE = 0; // enable peripheral interrupts
     INTCONbits.GIE = 0;  // enable interrupts
 
-    UART_init();   // initialize the UART module
+    uart_init();   // initialize the UART module
     printf("\n*** System startup ***\n");
 
     timer2_init(); // initialize the system time
-    printf("%ul: System clock started\n", GetSystemTime());
+    printf("%ul: System clock started\n", get_system_time());
 
-    InitLCD(FOUR_BIT);    // initialize the LCD: 4-bit, 2 line, 5x11 dots per character
-    printf("%ul: LCD initialized.\n", GetSystemTime());
+    lcd_init(FOUR_BIT);    // initialize the LCD: 4-bit, 2 line, 5x11 dots per character
+    printf("%ul: LCD initialized.\n", get_system_time());
 
     INTCONbits.PEIE = 0; // enable peripheral interrupts
     INTCONbits.GIE = 0;  // enable interrupts
 
-    TRISBbits.TRISB0 = 1;
-    TRISBbits.TRISB1 = 1;
-    ADCON1bits.PCFG = 0x0F; // AN12:AN0 to digital
-    INTCON2bits.INTEDG0 = 0; // interrupt on falling edge
-    INTCONbits.INT0IF = 0; // clear the flag
-    INTCONbits.INT0IE = 1;
-//    printf("%ul: Opening port B.\n", GetSystemTime());
-//    OpenPORTB(PORTB_CHANGE_INT_ON & PORTB_PULLUPS_ON);
-//    printf("%ul: Port B Open. Opening INT...\n", GetSystemTime());
-//    OpenRB0INT(PORTB_CHANGE_INT_ON & FALLING_EDGE_INT & PORTB_PULLUPS_ON);
-    printf("%ul: Port B interrupts initialized.\n", GetSystemTime());
+    int0_init();           // initialize INT0 interrupt
+    TRISB |= 0b00000010;   // Set RB1 to input
+    printf("%ul: Port B interrupts initialized.\n", get_system_time());
 
     RCONbits.IPEN = 0; // disable priority levels.
     INTCONbits.RBIE = 0;
     INTCONbits.PEIE = 1; // enable peripheral interrupts
     INTCONbits.GIE = 1;  // enable interrupts
 
-    LCD_Display_Encoder_Value(encoder_value);
+    display_encoder_value(encoder_value);
 
     while(1)
     {
         if(true == encoder_changed)
         {
-            LCD_Display_Encoder_Value(encoder_value);
+            display_encoder_value(encoder_value);
             encoder_changed = false;
         }
     }
 
     while(1)
     {
-        NavigateMenu(&menu_main);
+        menu_navigate(&menu_main);
     }
 
 }
 
-void DisplayStringLCD()
+void display_string_on_lcd()
 {
     char disp_string[16];
 
     cputs("Enter a string to display: ");
     cgets(disp_string);
-    putsLCD(disp_string);
+    lcd_put_string(disp_string);
 
     return;
 }
@@ -504,7 +510,7 @@ void timer2_init(void)
     PIE1bits.TMR2IE = 0;     // Timer2 interrupt enable
 }
 
-void UART_init(void)
+void uart_init(void)
 {
     TXSTAbits.BRGH = 1; // high baud rate
     TXSTAbits.SYNC = 0; // asynchronous mode
@@ -520,7 +526,7 @@ void UART_init(void)
     return;
 }
 
-void UART_write(unsigned char c) {
+void uart_write(unsigned char c) {
     while (!TXSTAbits.TRMT);
     TXREG = c;
 
@@ -530,9 +536,9 @@ void UART_write(unsigned char c) {
 // Override putch called by printf
 void putch(unsigned char byte)
 {
-    UART_write(byte);
+    uart_write(byte);
     if ('\n' == byte)
-        UART_write('\r');
+        uart_write('\r');
     return;
 }
 
@@ -552,7 +558,7 @@ unsigned char getche(void)
     return c;
 }
 
-unsigned long GetSystemTime()
+unsigned long get_system_time()
 {
     unsigned long TIME;
     INTCONbits.TMR0IE = 0;   // Timer0 interrupt disable
@@ -576,7 +582,7 @@ void int_debug(const char * msg)
     return;
 }
 
-void interrupt ISR(void)
+void interrupt isr(void)
 {
     int_debug("Interrupt! Source(s): ");
 
@@ -593,27 +599,20 @@ void interrupt ISR(void)
     if (1 == PIR1bits.TMR2IF)
     {
         int_debug("TMR2IF ");
+        INTCONbits.TMR0IE = 0;
         PIR1bits.TMR2IF = 0;
-        system_time = system_time + 1;
+        system_time += 1;
+        INTCONbits.TMR0IE = 1;
     }
 
+    // INT0 (RB0) external interrupt
     if (1 == INTCONbits.INT0IF)
     {
         int_debug("INT0IF ");
         INTCONbits.INT0IE = 0;
         INTCONbits.INT0IF = 0;
-        signed char adjust = 0;
-        if(PORTBbits.RB1)
-            adjust = 1;
-        else
-            adjust = -1;
-//        printf("adjust: %d\n",adjust);
-        encoder_value += adjust;
-
-        if(!encoder_changed) // Check if still processing the last interrupt
-        {
-            encoder_changed = true;
-        }
+        encoder_value += PORTBbits.RB1 ? 1 : -1;
+        encoder_changed = true;
         INTCONbits.INT0IE = 1;
     }
 
