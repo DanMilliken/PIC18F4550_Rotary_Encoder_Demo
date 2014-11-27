@@ -112,8 +112,8 @@ struct menu menu_lcd_control = { "LCD Control", NULL, 1, { &menu_lcd_control_dis
 struct menu menu_main = { "Main Menu", NULL, 1, { &menu_lcd_control } };
 
 /* delay functions for LCD */
-#assert _XTAL_FREQ == 20000000                    // lcd_delay_45_ms is based on 20MHz clock
-void lcd_delay_45_ms(void) { Delay1KTCYx(225); };       // delay 45ms
+#assert _XTAL_FREQ == 20000000                    // lcd_delay_100_ms is based on 20MHz clock
+void lcd_delay_100_ms(void) { Delay1KTCYx(500); };       // delay 100ms
 
 void menu_display(struct menu *mnu)
 {
@@ -314,18 +314,21 @@ void lcd_init(unsigned char lcdtype)
     RS_PIN = 0;                     // Register select pin made low
     E_PIN = 0;                      // Clock pin made low
 
-    // Delay for 45ms to allow for LCD Power on reset
-    lcd_delay_45_ms();
+    // Delay for 100ms to allow for LCD Power on reset
+    lcd_delay_100_ms();
 
     //-------------------reset procedure through software----------------------
     lcd_write_cmd(0x30);
-    __delay_us(37);
+    __delay_ms(5);      // Delay more than 4.1ms
 
     lcd_write_cmd(0x30);
-    __delay_us(37);
+    __delay_us(100);     // Delay more than 100us
 
-    lcd_write_cmd(0x32);
-    __delay_us(37);
+    lcd_write_cmd(0x30);
+    __delay_us(100);     // Delay more than 100us
+
+    lcd_write_cmd(0x20);
+    __delay_us(100);     // Delay more than 100us
 
     // Set data interface width, # lines, font
     while(lcd_busy_check());              // Wait if LCD busy
